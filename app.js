@@ -4193,7 +4193,7 @@ function installIOSNoZoomGuards(){
 // ---------- PWA register ----------
 if ("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
-    try { await navigator.serviceWorker.register("./sw.js"); } catch {}
+    try { await navigator.serviceWorker.register("./sw-v2702-1.js"); } catch {}
   });
 }
 
