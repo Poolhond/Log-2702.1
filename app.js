@@ -4225,26 +4225,31 @@ if ("serviceWorker" in navigator){
 // - Create settlement -> calculate -> icons correct
 // - Backup export/import still works
 // - Refresh persists state
-installIOSNoZoomGuards();
-window.addEventListener("resize", ()=>{
-  syncViewUiState();
-});
-setTab("logs");
-render();
-setBottomBarHeights({ statusVisible: false });
+try {
+  installIOSNoZoomGuards();
+  window.addEventListener("resize", ()=>{
+    syncViewUiState();
+  });
+  setTab("logs");
+  render();
+  setBottomBarHeights({ statusVisible: false });
 
-// Timer tick: update active timer display every 15 seconds
-setInterval(()=>{
-  if (state.activeLogId && ui.navStack[0]?.view === "logs" && ui.navStack.length === 1){
-    const elapsedEl = document.querySelector(".timer-active-elapsed");
-    const metaEl = document.querySelector(".timer-active-meta");
-    if (elapsedEl){
-      const active = state.logs.find(l => l.id === state.activeLogId);
-      if (active){
-        elapsedEl.textContent = durMsToHM(sumWorkMs(active));
-        const isPaused = currentOpenSegment(active)?.type === "break";
-        if (metaEl) metaEl.textContent = `${isPaused ? "Pauze actief" : "Timer loopt"} · gestart ${fmtClock(active.createdAt)}`;
+  // Timer tick: update active timer display every 15 seconds
+  setInterval(()=>{
+    if (state.activeLogId && ui.navStack[0]?.view === "logs" && ui.navStack.length === 1){
+      const elapsedEl = document.querySelector(".timer-active-elapsed");
+      const metaEl = document.querySelector(".timer-active-meta");
+      if (elapsedEl){
+        const active = state.logs.find(l => l.id === state.activeLogId);
+        if (active){
+          elapsedEl.textContent = durMsToHM(sumWorkMs(active));
+          const isPaused = currentOpenSegment(active)?.type === "break";
+          if (metaEl) metaEl.textContent = `${isPaused ? "Pauze actief" : "Timer loopt"} · gestart ${fmtClock(active.createdAt)}`;
+        }
       }
     }
-  }
-}, 15000);
+  }, 15000);
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  document.body.innerHTML = `<div style="padding:40px;color:white;">Fout bij opstarten: ${esc(message)}<br><button onclick="location.reload()">Herlaad</button></div>`;
+}
