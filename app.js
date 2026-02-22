@@ -3745,6 +3745,20 @@ function renderSettlementSheet(id){
     ${renderAllocationControls({ bucket: 'cash', kind, qty: cashQty })}
   `;
 
+  const renderAllocationStaticRow = ({ label, invoiceValue, cashValue, rowClass = '' })=>`
+    <div class="allocation-matrix-label ${rowClass}">${esc(label)}</div>
+    <div class="allocation-controls allocation-controls-static ${rowClass}" data-bucket="invoice">
+      <span class="allocation-btn-placeholder" aria-hidden="true"></span>
+      <div class="allocation-value mono tabular">${invoiceValue}</div>
+      <span class="allocation-btn-placeholder" aria-hidden="true"></span>
+    </div>
+    <div class="allocation-controls allocation-controls-static ${rowClass}" data-bucket="cash">
+      <span class="allocation-btn-placeholder" aria-hidden="true"></span>
+      <div class="allocation-value mono tabular">${cashValue}</div>
+      <span class="allocation-btn-placeholder" aria-hidden="true"></span>
+    </div>
+  `;
+
   const workIcon = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="7"/><path d="M12 8.6v3.8l2.7 1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const greenIcon = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 15c2.2-6.2 8.4-8.7 14-9-1.1 5.7-3 11.8-9 14-4 1.4-7-1.3-5-5Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 14.5c2 .2 4.6-.4 7.5-2.4" stroke-linecap="round"/></svg>`;
 
@@ -3776,31 +3790,17 @@ function renderSettlementSheet(id){
             invoiceQty: greenInvoiceLine?.qty || 0,
             cashQty: greenCashLine?.qty || 0
           })}
-        </div>
-      </div>
-
-      ${extraProducts.length ? `
-      <div class="section stack section-tight">
-        <h2>Extra producten</h2>
-        <div class="stack allocation-extra-list">
-          ${extraProducts.map(item => `
-            <div class="allocation-extra-item">
-              <div class="allocation-extra-title">${esc(item.label)}</div>
-              <div class="allocation-grid allocation-grid-extra">
-                <div class="allocation-col" data-bucket="invoice"><div class="allocation-col-head">Factuur</div><div class="allocation-value mono tabular">${esc(String(formatQuickQty(item.invoiceQty)))}</div></div>
-                <div class="allocation-col" data-bucket="cash"><div class="allocation-col-head">Cash</div><div class="allocation-value mono tabular">${esc(String(formatQuickQty(item.cashQty)))}</div></div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      ` : ''}
-
-      <div class="section stack section-tight">
-        <h2>Totaal blok</h2>
-        <div class="totals-flat-grid ${pay.isPaid ? 'is-paid' : 'is-open'}">
-          <div class="totals-flat-col"><div class="allocation-col-head">Factuur</div><div class="totals-flat-value mono tabular">${moneyOrBlank(pay.invoiceTotal)}</div></div>
-          <div class="totals-flat-col"><div class="allocation-col-head">Cash</div><div class="totals-flat-value mono tabular">${moneyOrBlank(pay.cashTotal)}</div></div>
+          ${extraProducts.map(item => renderAllocationStaticRow({
+            label: item.label,
+            invoiceValue: esc(String(formatQuickQty(item.invoiceQty))),
+            cashValue: esc(String(formatQuickQty(item.cashQty)))
+          })).join('')}
+          ${renderAllocationStaticRow({
+            label: 'TOTAL',
+            invoiceValue: moneyOrBlank(pay.invoiceTotal),
+            cashValue: moneyOrBlank(pay.cashTotal),
+            rowClass: `allocation-total-row ${pay.isPaid ? 'is-paid' : 'is-open'}`
+          })}
         </div>
       </div>
 

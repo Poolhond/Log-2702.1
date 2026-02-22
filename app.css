@@ -1033,6 +1033,11 @@ body:not([data-view="meer"]) #moreActionBar{
   color:var(--muted);
 }
 
+.allocation-matrix-label{
+  font-size:13px;
+  color:var(--text);
+}
+
 .allocation-matrix-icon .icon{
   width:16px;
   height:16px;
@@ -1041,6 +1046,10 @@ body:not([data-view="meer"]) #moreActionBar{
 .allocation-btn-placeholder{
   width:34px;
   height:34px;
+}
+
+.allocation-controls-static .allocation-btn-placeholder{
+  pointer-events:none;
 }
 
 .allocation-value{
@@ -1072,28 +1081,21 @@ body:not([data-view="meer"]) #moreActionBar{
   display:none;
 }
 
-.totals-flat-grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:12px;
+.allocation-total-row{
+  border-top:1px solid var(--border);
+  padding-top:10px;
+  margin-top:2px;
 }
 
-.totals-flat-col{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  align-items:center;
+.allocation-total-row .allocation-value{
+  font-weight:700;
 }
 
-.totals-flat-value{
-  font-size:16px;
-}
-
-.totals-flat-grid.is-open .totals-flat-value{
+.allocation-total-row.is-open .allocation-value{
   color:#ff8c00;
 }
 
-.totals-flat-grid.is-paid .totals-flat-value{
+.allocation-total-row.is-paid .allocation-value{
   color:#00a05a;
 }
 
