@@ -1033,6 +1033,10 @@ body:not([data-view="meer"]) #moreActionBar{
   border-bottom:1px solid var(--border);
 }
 
+.settlement-flow{
+  border-top:0;
+}
+
 .settlement-detail .section{
   padding-left:0;
   padding-right:0;
