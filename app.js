@@ -3937,15 +3937,15 @@ function renderSettlementSheet(id){
 
       <div class="section stack section-tight">
         <h2>Administratieve gegevens</h2>
-        <button class="summary-row summary-row-button" id="settlementDateTrigger" type="button" aria-label="Afreken datum aanpassen">
+        <div class="summary-row date-row-wrap" id="settlementDateRow">
           <span class="label">Datum</span>
           <span class="num">${esc(formatDatePretty(effectiveDateISO))}${isDateOverridden ? ' <span class="date-override-indicator">· handmatig</span>' : ''}</span>
-        </button>
+          <input id="settlementDatePicker" class="date-overlay-input" type="date" value="${esc(effectiveDateISO)}" aria-label="Afreken datum aanpassen"/>
+        </div>
         ${isDateOverridden ? `<div class="summary-row summary-row-action"><span class="label"></span><button class="btn-link-inline" id="settlementDateReset" type="button">Reset naar automatisch</button></div>` : ''}
         ${showInvoiceSection && pay.invoiceTotal > 0 ? `<div class="summary-row"><span class="label">Factuurnummer</span><span class="num mono">${esc(invoiceNumberDisplay || '—')}</span></div>` : ''}
         <div class="summary-row"><span class="label">Status</span><span class="num">${esc(statusLabelNL(s.status))}</span></div>
         <div class="summary-row"><span class="label">Notitie</span><span class="num">${esc(s.note || '—')}</span></div>
-        <input id="settlementDatePicker" type="date" class="hidden-date-input" value="${esc(effectiveDateISO)}" />
       </div>
 
       ${isEdit ? `
@@ -3970,13 +3970,7 @@ function renderSettlementSheet(id){
     </button>
   `);
 
-  const dateTrigger = $("#settlementDateTrigger");
   const dateInput = $("#settlementDatePicker");
-  dateTrigger?.addEventListener("click", ()=>{
-    if (!dateInput) return;
-    if (typeof dateInput.showPicker === "function") dateInput.showPicker();
-    else dateInput.click();
-  });
   dateInput?.addEventListener("change", ()=>{
     const chosenISO = String(dateInput.value || "").slice(0, 10);
     if (!chosenISO) return;
