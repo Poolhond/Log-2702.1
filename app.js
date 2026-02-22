@@ -7,6 +7,10 @@
    - Status kleuren: logs afgeleid van afrekening.status
 */
 
+if ("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+}
+
 const STORAGE_KEY = "tuinlog_mvp_v1";
 const START_TOP_LIMIT = 8;
 const $ = (s) => document.querySelector(s);
@@ -4316,13 +4320,6 @@ function installIOSNoZoomGuards(){
   const blockGesture = (event) => event.preventDefault();
   ["gesturestart", "gesturechange", "gestureend"].forEach((type)=>{
     document.addEventListener(type, blockGesture, { passive: false });
-  });
-}
-
-// ---------- PWA register ----------
-if ("serviceWorker" in navigator){
-  window.addEventListener("load", async ()=>{
-    try { await navigator.serviceWorker.register("./sw-v2702-1.js"); } catch {}
   });
 }
 
