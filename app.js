@@ -392,6 +392,7 @@ function loadState(){
     if (!("cashPaid" in s)) s.cashPaid = false;
     if (!("invoiceAmount" in s)) s.invoiceAmount = 0;
     if (!("cashAmount" in s)) s.cashAmount = 0;
+    if (!("dateOverrideISO" in s)) s.dateOverrideISO = null;
     if (!("invoiceLocked" in s)) s.invoiceLocked = Boolean(s.isCalculated);
     ensureSettlementCashAllocation(s);
     syncSettlementFromLogs(s, st);
@@ -1164,10 +1165,24 @@ function latestLinkedLogDate(settlement, sourceState = state){
   return linkedDates[linkedDates.length - 1] || "";
 }
 
+function getSettlementAutoDateISO(settlement, sourceState = state){
+  if (!settlement) return todayISO();
+  return latestLinkedLogDate(settlement, sourceState) || settlement.date || todayISO();
+}
+
+function getSettlementEffectiveDateISO(settlement, sourceState = state){
+  if (!settlement) return todayISO();
+  return settlement.dateOverrideISO || getSettlementAutoDateISO(settlement, sourceState);
+}
+
+function isSettlementDateOverridden(settlement){
+  return Boolean(settlement?.dateOverrideISO);
+}
+
 function syncSettlementDatesFromLogs(settlement, sourceState = state){
   if (!settlement) return;
   const fallbackDate = todayISO();
-  const maxLogDate = latestLinkedLogDate(settlement, sourceState);
+  const maxLogDate = getSettlementAutoDateISO(settlement, sourceState);
   if (maxLogDate){
     settlement.date = maxLogDate;
     if (!settlement.invoiceLocked) settlement.invoiceDate = maxLogDate;
@@ -1551,18 +1566,6 @@ function syncSettlementFromLogs(settlement, sourceState = state){
   syncSettlementStatus(settlement);
 }
 
-function getSettlementEffectiveDateISO(settlement, sourceState = state){
-  if (!settlement) return todayISO();
-  const logs = (settlement.logIds || [])
-    .map(id => sourceState.logs.find(l => l.id === id))
-    .filter(Boolean);
-  let latest = null;
-  for (const log of logs){
-    if (log.date && (!latest || log.date > latest)) latest = log.date;
-  }
-  return latest || settlement.date || todayISO();
-}
-
 // ---------- UI state ----------
 const ui = {
   navStack: [{ view: "logs" }],
@@ -1649,6 +1652,7 @@ const actions = {
       invoiceAmount: 0, cashAmount: 0, invoicePaid: false, cashPaid: false,
       invoiceNumber: null,
       invoiceDate,
+      dateOverrideISO: null,
       invoiceLocked: false,
       cashAllocation: { work: 0, green: 0, products: {} }
     };
@@ -1673,6 +1677,7 @@ const actions = {
         invoiceAmount: 0, cashAmount: 0, invoicePaid: false, cashPaid: false,
         invoiceNumber: null,
         invoiceDate,
+        dateOverrideISO: null,
         invoiceLocked: false
       };
       ensureSettlementCashAllocation(s);
@@ -1723,8 +1728,10 @@ const actions = {
   },
   editSettlement(settlementId, updater){
     const settlement = state.settlements.find(x => x.id === settlementId);
-    if (!settlement || typeof updater !== "function") return;
-    updater(settlement);
+    if (!settlement) return;
+    if (typeof updater === "function") updater(settlement);
+    else if (updater && typeof updater === "object") Object.assign(settlement, updater);
+    else return;
     syncSettlementFromLogs(settlement);
     ensureSettlementInvoiceDefaults(settlement, state.settlements || []);
     commit();
@@ -1855,7 +1862,7 @@ function viewTitle(viewState){
   }
   if (view === "settlementDetail"){
     const s = state.settlements.find(x => x.id === viewState.id);
-    return s ? `${cname(s.customerId)}${s.date ? ` · ${s.date}` : ""}` : "Afrekening";
+    return s ? `${cname(s.customerId)} · ${getSettlementEffectiveDateISO(s)}` : "Afrekening";
   }
   if (view === "settlementLogOverview") return "Afrekening log-overzicht";
   if (view === "customerDetail"){
@@ -1908,7 +1915,7 @@ function renderTopbar(){
       const visual = getSettlementVisualState(settlement);
       topbar.classList.add(visual.navClass);
       $("#topbarTitle").textContent = cname(settlement.customerId);
-      const displayDate = latestLinkedLogDate(settlement) || settlement.date;
+      const displayDate = getSettlementEffectiveDateISO(settlement);
       subtitleEl.textContent = formatDatePretty(displayDate);
       subtitleEl.classList.remove("hidden");
       linkedCustomerId = settlement.customerId || "";
@@ -2651,7 +2658,7 @@ function renderSettlements(){
         <div class="item-main">
           <div class="item-title">${esc(cname(s.customerId))}</div>
           <div class="meta-text" style="margin-top:2px;">
-            ${esc(formatDatePretty(getSettlementEffectiveDateISO(s)))} · ${(s.logIds||[]).length} logs · ${formatDurationCompact(totalMinutes)}
+            ${esc(formatDatePretty(getSettlementEffectiveDateISO(s)))}${isSettlementDateOverridden(s) ? ' <span class="date-override-indicator" aria-label="handmatig">✎</span>' : ''} · ${(s.logIds||[]).length} logs · ${formatDurationCompact(totalMinutes)}
           </div>
         </div>
         <div class="amount-prominent">${formatMoneyEUR(grand)}</div>
@@ -3088,7 +3095,7 @@ function renderProductSheet(id){
             <div class="item" data-open-settlement="${s.id}">
               <div class="item-main">
                 <div class="item-title">${esc(cname(s.customerId))}</div>
-                <div class="item-sub mono">${esc(s.date)} • ${statusLabelNL(s.status)}</div>
+                <div class="item-sub mono">${esc(formatDatePretty(getSettlementEffectiveDateISO(s)))} • ${statusLabelNL(s.status)}</div>
               </div>
               <div class="item-right"><span class="badge">open</span></div>
             </div>
@@ -3191,7 +3198,7 @@ function renderLogSheet(id){
   function renderLinkedAfrekeningRow(settlement){
     if (!settlement) return "";
     const metaParts = [];
-    if (settlement.date) metaParts.push(formatDatePretty(settlement.date));
+    metaParts.push(formatDatePretty(getSettlementEffectiveDateISO(settlement)));
     metaParts.push(`#${String(settlement.id || "").slice(0, 8)}`);
 
     return `
@@ -3229,7 +3236,7 @@ function renderLogSheet(id){
   }
 
   const linkedAfrekeningMetaParts = [];
-  if (linkedAfrekening?.date) linkedAfrekeningMetaParts.push(formatDatePretty(linkedAfrekening.date));
+  if (linkedAfrekening) linkedAfrekeningMetaParts.push(formatDatePretty(getSettlementEffectiveDateISO(linkedAfrekening)));
   if (linkedAfrekening?.id) linkedAfrekeningMetaParts.push(`#${String(linkedAfrekening.id).slice(0, 8)}`);
 
   $("#sheetBody").innerHTML = `
@@ -3580,7 +3587,7 @@ function buildSettlementSelectOptions(customerId, currentSettlementId){
     .filter(s => s.customerId === customerId && (s.id === currentSettlementId || !isSettlementPaid(s)))
     .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   for (const s of list){
-    const label = `${fmtDateShort(s.date)} — ${statusLabelNL(s.status)} — logs ${(s.logIds||[]).length}`;
+    const label = `${fmtDateShort(getSettlementEffectiveDateISO(s))} — ${statusLabelNL(s.status)} — logs ${(s.logIds||[]).length}`;
     options.push(`<option value="${s.id}" ${s.id===currentSettlementId?"selected":""}>${esc(label)}</option>`);
   }
   options.push(`<option value="new">+ Nieuwe afrekening aanmaken…</option>`);
@@ -3689,7 +3696,7 @@ function calculateSettlement(settlement){
   const totals = getSettlementTotals(settlement);
   const hasInvoice = Number(totals.invoiceTotal || 0) > 0;
   if (hasInvoice && !String(settlement.invoiceNumber || "").trim()){
-    const result = getNextInvoiceNumberForDate(settlement.date, state.settlements || [], settlement.id);
+    const result = getNextInvoiceNumberForDate(getSettlementEffectiveDateISO(settlement), state.settlements || [], settlement.id);
     if (!result.ok) return result;
     settlement.invoiceNumber = result.number;
   }
@@ -3796,6 +3803,8 @@ function renderSettlementSheet(id){
 
   const pay = settlementPaymentState(s);
   const visual = getSettlementVisualState(s);
+  const effectiveDateISO = getSettlementEffectiveDateISO(s);
+  const isDateOverridden = isSettlementDateOverridden(s);
   const showInvoiceSection = pay.hasInvoice;
   const allLines = s.lines || [];
   const workInvoiceLine = findSettlementQuickLine(allLines, 'invoice', 'work');
@@ -3928,10 +3937,15 @@ function renderSettlementSheet(id){
 
       <div class="section stack section-tight">
         <h2>Administratieve gegevens</h2>
-        <div class="summary-row"><span class="label">Datum</span><span class="num">${esc(formatDatePretty(s.date))}</span></div>
+        <button class="summary-row summary-row-button" id="settlementDateTrigger" type="button" aria-label="Afreken datum aanpassen">
+          <span class="label">Datum</span>
+          <span class="num">${esc(formatDatePretty(effectiveDateISO))}${isDateOverridden ? ' <span class="date-override-indicator">· handmatig</span>' : ''}</span>
+        </button>
+        ${isDateOverridden ? `<div class="summary-row summary-row-action"><span class="label"></span><button class="btn-link-inline" id="settlementDateReset" type="button">Reset naar automatisch</button></div>` : ''}
         ${showInvoiceSection && pay.invoiceTotal > 0 ? `<div class="summary-row"><span class="label">Factuurnummer</span><span class="num mono">${esc(invoiceNumberDisplay || '—')}</span></div>` : ''}
         <div class="summary-row"><span class="label">Status</span><span class="num">${esc(statusLabelNL(s.status))}</span></div>
         <div class="summary-row"><span class="label">Notitie</span><span class="num">${esc(s.note || '—')}</span></div>
+        <input id="settlementDatePicker" type="date" class="hidden-date-input" value="${esc(effectiveDateISO)}" />
       </div>
 
       ${isEdit ? `
@@ -3955,6 +3969,24 @@ function renderSettlementSheet(id){
         : `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21l3.5-.8L19 7.7a1.8 1.8 0 0 0 0-2.5l-.2-.2a1.8 1.8 0 0 0-2.5 0L3.8 17.5z"></path><path d="M14 5l5 5"></path></svg>`}
     </button>
   `);
+
+  const dateTrigger = $("#settlementDateTrigger");
+  const dateInput = $("#settlementDatePicker");
+  dateTrigger?.addEventListener("click", ()=>{
+    if (!dateInput) return;
+    if (typeof dateInput.showPicker === "function") dateInput.showPicker();
+    else dateInput.click();
+  });
+  dateInput?.addEventListener("change", ()=>{
+    const chosenISO = String(dateInput.value || "").slice(0, 10);
+    if (!chosenISO) return;
+    actions.editSettlement(s.id, { dateOverrideISO: chosenISO });
+    renderSheet();
+  });
+  $("#settlementDateReset")?.addEventListener("click", ()=>{
+    actions.editSettlement(s.id, { dateOverrideISO: null });
+    renderSheet();
+  });
 
   $('#toggleCalculated')?.addEventListener('click', ()=>{
     const calculated = isSettlementCalculated(s);
@@ -3997,7 +4029,7 @@ function renderSettlementSheet(id){
 
   if (isEdit){
     $('#delSettlement')?.addEventListener('click', ()=>{
-      if (!confirmDelete(`Afrekening ${formatDatePretty(s.date)} — ${cname(s.customerId)}`)) return;
+      if (!confirmDelete(`Afrekening ${formatDatePretty(getSettlementEffectiveDateISO(s))} — ${cname(s.customerId)}`)) return;
       actions.deleteSettlement(s.id);
       closeSheet();
     });
