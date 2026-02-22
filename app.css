@@ -169,10 +169,12 @@ body{
 .page-inner{
   height:100%;
   overflow:auto;
+  overflow-x:hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   padding: calc(var(--topbar-height) + env(safe-area-inset-top) + 8px) var(--pad) calc(var(--bottom-tabbar-height) + var(--status-tabbar-height) + env(safe-area-inset-bottom)) var(--pad);
-  max-width: 760px;
+  width:100%;
+  max-width:min(760px, 100vw);
   margin: 0 auto;
 }
 
@@ -995,18 +997,28 @@ body:not([data-view="meer"]) #moreActionBar{
 
 .date-row-wrap{
   position:relative;
+  width:100%;
+  overflow:hidden;
 }
 
 .date-overlay-input{
   position:absolute;
-  inset:0;
+  left:0;
+  right:0;
+  top:0;
+  bottom:0;
   width:100%;
+  max-width:100%;
   height:100%;
+  box-sizing:border-box;
   opacity:0;
   border:0;
+  padding:0;
+  margin:0;
   background:transparent;
   z-index:2;
   pointer-events:auto;
+  touch-action:pan-y;
 }
 
 .summary-sub{
