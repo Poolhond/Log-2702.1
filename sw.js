@@ -1,4 +1,5 @@
-const CACHE = "tuinlog-cache-v6";
+// sw.js — iOS-robuste app-shell service worker
+const CACHE = "tuinlog-cache-v6"; // <-- BELANGRIJK: bump bij elke release
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,53 +10,64 @@ const ASSETS = [
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.map(k => k === CACHE ? null : caches.delete(k))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => (k === CACHE ? null : caches.delete(k)))))
       .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener("message", (e) => {
-  if (e.data === "skipWaiting") {
-    self.skipWaiting();
-  }
-});
-
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;
+  const req = e.request;
+  const url = new URL(req.url);
 
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(e.request);
+  // Alleen eigen origin
+  if (url.origin !== self.location.origin) return;
 
-    const networkPromise = fetch(e.request)
-      .then((response) => {
-        if (response && response.ok) {
-          cache.put(e.request, response.clone());
-        }
-        return response;
-      });
+  // 1) Navigations (iOS standalone herstart): altijd app-shell (index.html) uit cache
+  if (req.mode === "navigate") {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
 
-    if (cached) {
-      e.waitUntil(networkPromise.catch(() => undefined));
-      return cached;
-    }
+      // probeer cache index (ook als URL afwijkt)
+      const cachedIndex = await cache.match("./index.html", { ignoreSearch: true });
+      if (cachedIndex) return cachedIndex;
 
-    try {
-      return await networkPromise;
-    } catch {
-      const offlineFallback = await cache.match("./index.html");
-      if (offlineFallback) return offlineFallback;
-      return new Response("Offline", {
-        status: 503,
-        headers: { "Content-Type": "text/plain; charset=utf-8" }
-      });
-    }
-  })());
+      // als niet in cache, haal online en cache
+      try {
+        const fresh = await fetch(req);
+        if (fresh && fresh.ok) cache.put("./index.html", fresh.clone());
+        return fresh;
+      } catch (err) {
+        // laatste redmiddel: probeer root
+        const cachedRoot = await cache.match("./", { ignoreSearch: true });
+        if (cachedRoot) return cachedRoot;
+        throw err;
+      }
+    })());
+    return;
+  }
+
+  // 2) Overige GET requests: cache-first met ignoreSearch
+  if (req.method === "GET") {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      const cached = await cache.match(req, { ignoreSearch: true });
+      if (cached) return cached;
+
+      const res = await fetch(req);
+      // optioneel: cache enkel dezelfde-origin assets
+      if (res && res.ok) {
+        cache.put(req, res.clone());
+      }
+      return res;
+    })());
+  }
 });
