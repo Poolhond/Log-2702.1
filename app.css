@@ -993,12 +993,20 @@ body:not([data-view="meer"]) #moreActionBar{
   cursor:pointer;
 }
 
-.hidden-date-input{
+.date-row-wrap{
+  position:relative;
+}
+
+.date-overlay-input{
   position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
   opacity:0;
-  pointer-events:none;
-  width:0;
-  height:0;
+  border:0;
+  background:transparent;
+  z-index:2;
+  pointer-events:auto;
 }
 
 .summary-sub{
