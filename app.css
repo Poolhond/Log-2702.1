@@ -965,6 +965,42 @@ body:not([data-view="meer"]) #moreActionBar{
 .summary-row .label{ opacity:.88; }
 .summary-row .num{ font-variant-numeric: tabular-nums; }
 
+.summary-row-button{
+  width:100%;
+  border:0;
+  background:none;
+  padding:0;
+  color:inherit;
+  text-align:left;
+  cursor:pointer;
+}
+
+.summary-row-action{
+  justify-content:flex-end;
+}
+
+.date-override-indicator{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.btn-link-inline{
+  border:0;
+  background:none;
+  color:var(--muted);
+  font-size:12px;
+  padding:0;
+  cursor:pointer;
+}
+
+.hidden-date-input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+  width:0;
+  height:0;
+}
+
 .summary-sub{
   margin-top:2px;
   font-size:12px;
