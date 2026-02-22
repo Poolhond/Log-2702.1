@@ -4204,13 +4204,18 @@ if ("serviceWorker" in navigator){
 // - Create settlement -> calculate -> icons correct
 // - Backup export/import still works
 // - Refresh persists state
-installIOSNoZoomGuards();
-window.addEventListener("resize", ()=>{
-  syncViewUiState();
-});
-setTab("logs");
-render();
-setBottomBarHeights({ statusVisible: false });
+try {
+  installIOSNoZoomGuards();
+  window.addEventListener("resize", ()=>{
+    syncViewUiState();
+  });
+  setTab("logs");
+  render();
+  setBottomBarHeights({ statusVisible: false });
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  document.body.innerHTML = `<div style="padding:40px;color:white;">Fout bij opstarten: ${esc(message)}<br><button onclick="location.reload()">Herlaad</button></div>`;
+}
 
 // Timer tick: update active timer display every 15 seconds
 setInterval(()=>{
