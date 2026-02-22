@@ -1008,11 +1008,34 @@ body:not([data-view="meer"]) #moreActionBar{
 }
 
 .allocation-controls{
-  width:100%;
   display:grid;
   grid-template-columns:34px minmax(0,1fr) 34px;
   align-items:center;
   gap:8px;
+}
+
+.allocation-matrix{
+  display:grid;
+  grid-template-columns:20px minmax(0,1fr) minmax(0,1fr);
+  align-items:center;
+  row-gap:12px;
+  column-gap:12px;
+}
+
+.allocation-matrix .allocation-col-head{
+  text-align:center;
+}
+
+.allocation-matrix-icon{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  color:var(--muted);
+}
+
+.allocation-matrix-icon .icon{
+  width:16px;
+  height:16px;
 }
 
 .allocation-btn-placeholder{
