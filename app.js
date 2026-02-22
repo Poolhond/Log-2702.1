@@ -1089,6 +1089,11 @@ function countGreenItems(log){
 function getCustomer(id){ return state.customers.find(c => c.id === id) || null; }
 function cname(id){ const c=getCustomer(id); return c ? (c.nickname || c.name || "Klant") : "Klant"; }
 function getProduct(id){ return state.products.find(p => p.id === id) || null; }
+function getProductUnitPrice(productIdOrName){
+  const p = state.products.find(x => x.id === productIdOrName)
+       || state.products.find(x => (x.name||"").toLowerCase() === String(productIdOrName).toLowerCase());
+  return p ? Number(p.unitPrice || 0) : 0;
+}
 function pname(id){ const p=getProduct(id); return p ? p.name : "Product"; }
 
 function currentOpenSegment(log){
@@ -1120,12 +1125,20 @@ function getLogVisualState(log){
 function getSettlementTotals(settlement){
   const invoiceTotals = bucketTotals(settlement.lines, "invoice");
   const cashTotals = bucketTotals(settlement.lines, "cash");
+  const invoiceSubtotal = round2((settlement.lines || []).reduce((sum, line)=>{
+    if ((line.bucket || "invoice") !== "invoice") return sum;
+    return sum + ((Number(line.qty) || 0) * (Number(line.unitPrice) || 0));
+  }, 0));
+  const cashSubtotal = round2((settlement.lines || []).reduce((sum, line)=>{
+    if ((line.bucket || "invoice") !== "cash") return sum;
+    return sum + ((Number(line.qty) || 0) * (Number(line.unitPrice) || 0));
+  }, 0));
   return {
-    invoiceSubtotal: invoiceTotals.subtotal,
+    invoiceSubtotal,
     invoiceVat: invoiceTotals.vat,
     invoiceTotal: invoiceTotals.total,
-    cashSubtotal: cashTotals.subtotal,
-    cashTotal: cashTotals.subtotal
+    cashSubtotal,
+    cashTotal: cashSubtotal
   };
 }
 
@@ -1474,7 +1487,12 @@ function clampAllocation(value, max, step){
 function buildSettlementLinesFromTotals(settlement, totals, sourceState = state){
   const lines = [];
   const workProduct = findWorkProductInState(sourceState);
-  const greenProduct = findGreenProduct();
+  const greenProduct =
+    (sourceState.products || []).find(p => (p.name||"").toLowerCase() === "groen")
+    || (sourceState.products || []).find(p => p.key === "groen")
+    || null;
+  const greenUnitPrice = Number(greenProduct?.unitPrice ?? getProductUnitPrice(greenProduct?.id || "Groen") ?? 0);
+  const greenVatRate = Number(greenProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0);
   const workTotal = totals.workHoursRounded;
   const workCash = clampAllocation(settlement.cashAllocation.work, workTotal, 0.5);
   const greenTotal = totals.greenQty;
@@ -1499,8 +1517,8 @@ function buildSettlementLinesFromTotals(settlement, totals, sourceState = state)
   pushLine({ product: workProduct, qty: workCash, bucket: "cash", unitPrice: hourlyRate, vatRate: 0, fallbackName: "Werk" });
   pushLine({ product: workProduct, qty: round2(workTotal - workCash), bucket: "invoice", unitPrice: hourlyRate, vatRate: Number(workProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0), fallbackName: "Werk" });
 
-  pushLine({ product: greenProduct, qty: greenCash, bucket: "cash", unitPrice: 0, vatRate: 0, fallbackName: "Groen" });
-  pushLine({ product: greenProduct, qty: greenInv, bucket: "invoice", unitPrice: 0, vatRate: Number(greenProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0), fallbackName: "Groen" });
+  pushLine({ product: greenProduct, qty: greenCash, bucket: "cash", unitPrice: greenUnitPrice, vatRate: 0, fallbackName: "Groen" });
+  pushLine({ product: greenProduct, qty: greenInv, bucket: "invoice", unitPrice: greenUnitPrice, vatRate: greenVatRate, fallbackName: "Groen" });
 
   for (const [productId, totalQty] of totals.otherByProductId.entries()){
     const product = (sourceState.products || []).find(p => p.id === productId) || null;
