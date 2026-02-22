@@ -77,6 +77,9 @@ function round2(n){ return Math.round((Number(n||0))*100)/100; }
 function roundToNearestHalf(n){
   return Math.round((Number(n || 0) * 2)) / 2;
 }
+function roundToHalf(n){
+  return Math.round((Number(n || 0) * 2)) / 2;
+}
 function formatDatePretty(isoDate){
   if (!isoDate) return "";
   const [y, m, d] = String(isoDate).split("-").map(Number);
@@ -1068,7 +1071,7 @@ function adjustSettlementQuickQty(settlementId, bucket, kind, delta){
     if (!Number.isFinite(signedDelta) || signedDelta === 0) return;
 
     if (kind === "work") draft.cashAllocation.work = round2(Number(draft.cashAllocation.work || 0) + signedDelta);
-    else if (kind === "green") draft.cashAllocation.green = round2(Number(draft.cashAllocation.green || 0) + signedDelta);
+    else if (kind === "green") draft.cashAllocation.green = roundToHalf(Number(draft.cashAllocation.green || 0) + signedDelta);
     else if (kind.startsWith("product:")) {
       const productId = kind.slice(8);
       draft.cashAllocation.products[productId] = round2(Number(draft.cashAllocation.products[productId] || 0) + signedDelta);
@@ -1457,7 +1460,7 @@ function computeSettlementTotalsFromLinkedLogs(settlement, sourceState = state){
     }
   }
   totals.workHoursRounded = roundToNearestHalf(totals.workHoursRounded);
-  totals.greenQty = Math.max(0, Math.round(totals.greenQty));
+  totals.greenQty = Math.max(0, roundToHalf(totals.greenQty));
   return totals;
 }
 
@@ -1475,7 +1478,9 @@ function buildSettlementLinesFromTotals(settlement, totals, sourceState = state)
   const workTotal = totals.workHoursRounded;
   const workCash = clampAllocation(settlement.cashAllocation.work, workTotal, 0.5);
   const greenTotal = totals.greenQty;
-  const greenCash = clampAllocation(settlement.cashAllocation.green, greenTotal, 1);
+  const greenCash = clampAllocation(settlement.cashAllocation.green, greenTotal, 0.5);
+  const greenInv = roundToHalf(greenTotal - greenCash);
+  const hourlyRate = Number(sourceState.settings?.hourlyRate || 0);
 
   const pushLine = ({ product, qty, bucket, unitPrice, vatRate, fallbackName })=>{
     lines.push({
@@ -1491,11 +1496,11 @@ function buildSettlementLinesFromTotals(settlement, totals, sourceState = state)
     });
   };
 
-  pushLine({ product: workProduct, qty: workCash, bucket: "cash", unitPrice: 0, vatRate: 0, fallbackName: "Werk" });
-  pushLine({ product: workProduct, qty: round2(workTotal - workCash), bucket: "invoice", unitPrice: Number(sourceState.settings?.hourlyRate || 0), vatRate: Number(workProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0), fallbackName: "Werk" });
+  pushLine({ product: workProduct, qty: workCash, bucket: "cash", unitPrice: hourlyRate, vatRate: 0, fallbackName: "Werk" });
+  pushLine({ product: workProduct, qty: round2(workTotal - workCash), bucket: "invoice", unitPrice: hourlyRate, vatRate: Number(workProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0), fallbackName: "Werk" });
 
   pushLine({ product: greenProduct, qty: greenCash, bucket: "cash", unitPrice: 0, vatRate: 0, fallbackName: "Groen" });
-  pushLine({ product: greenProduct, qty: round2(greenTotal - greenCash), bucket: "invoice", unitPrice: 0, vatRate: Number(greenProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0), fallbackName: "Groen" });
+  pushLine({ product: greenProduct, qty: greenInv, bucket: "invoice", unitPrice: 0, vatRate: Number(greenProduct?.vatRate ?? sourceState.settings?.vatRate ?? 0), fallbackName: "Groen" });
 
   for (const [productId, totalQty] of totals.otherByProductId.entries()){
     const product = (sourceState.products || []).find(p => p.id === productId) || null;
@@ -1513,7 +1518,7 @@ function syncSettlementFromLogs(settlement, sourceState = state){
   settlement.date = totals.latestDateISO || todayISO();
 
   settlement.cashAllocation.work = clampAllocation(settlement.cashAllocation.work, totals.workHoursRounded, 0.5);
-  settlement.cashAllocation.green = clampAllocation(settlement.cashAllocation.green, totals.greenQty, 1);
+  settlement.cashAllocation.green = clampAllocation(settlement.cashAllocation.green, totals.greenQty, 0.5);
 
   const nextProducts = {};
   for (const [productId, totalQty] of totals.otherByProductId.entries()){
@@ -4007,7 +4012,7 @@ function renderSettlementSheet(id){
           renderSheetKeepScroll();
         },
         ()=>{
-          const holdStep = kind === "work" ? 0.5 : 1;
+          const holdStep = kind === "green" ? 0.5 : 1;
           adjustSettlementQuickQty(s.id, bucket, kind, step > 0 ? holdStep : -holdStep);
           renderSheetKeepScroll();
         }
