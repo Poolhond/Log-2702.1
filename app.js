@@ -3731,16 +3731,18 @@ function renderSettlementSheet(id){
   }
   const extraProducts = Array.from(extraByKey.values()).filter(item => item.invoiceQty > 0 || item.cashQty > 0);
 
-  const renderAllocationColumn = ({ bucket, kind, qty, icon })=>`
-    <div class="allocation-col" data-bucket="${bucket}">
-      <div class="allocation-col-head">${bucket === 'invoice' ? 'Factuur' : 'Cash'}</div>
-      <div class="allocation-controls">
-        ${isEdit ? `<button class="iconbtn iconbtn-sm" type="button" data-settle-quick-step="${bucket}|${kind}|-1" aria-label="${kind} min">−</button>` : `<span class="allocation-btn-placeholder"></span>`}
-        <div class="allocation-value mono tabular">${esc(String(formatQuickQty(qty)))}</div>
-        ${isEdit ? `<button class="iconbtn iconbtn-sm" type="button" data-settle-quick-step="${bucket}|${kind}|1" aria-label="${kind} plus">+</button>` : `<span class="allocation-btn-placeholder"></span>`}
-      </div>
-      <div class="allocation-icon" aria-hidden="true">${icon}</div>
+  const renderAllocationControls = ({ bucket, kind, qty })=>`
+    <div class="allocation-controls" data-bucket="${bucket}">
+      ${isEdit ? `<button class="iconbtn iconbtn-sm" type="button" data-settle-quick-step="${bucket}|${kind}|-1" aria-label="${kind} min">−</button>` : `<span class="allocation-btn-placeholder"></span>`}
+      <div class="allocation-value mono tabular">${esc(String(formatQuickQty(qty)))}</div>
+      ${isEdit ? `<button class="iconbtn iconbtn-sm" type="button" data-settle-quick-step="${bucket}|${kind}|1" aria-label="${kind} plus">+</button>` : `<span class="allocation-btn-placeholder"></span>`}
     </div>
+  `;
+
+  const renderAllocationMatrixRow = ({ kind, icon, invoiceQty, cashQty })=>`
+    <div class="allocation-matrix-icon" aria-hidden="true">${icon}</div>
+    ${renderAllocationControls({ bucket: 'invoice', kind, qty: invoiceQty })}
+    ${renderAllocationControls({ bucket: 'cash', kind, qty: cashQty })}
   `;
 
   const workIcon = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="7"/><path d="M12 8.6v3.8l2.7 1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -3758,18 +3760,22 @@ function renderSettlementSheet(id){
       </div>
 
       <div class="section stack section-tight">
-        <h2>Werk verdeling</h2>
-        <div class="allocation-grid">
-          ${renderAllocationColumn({ bucket: 'invoice', kind: 'work', qty: workInvoiceLine?.qty || 0, icon: workIcon })}
-          ${renderAllocationColumn({ bucket: 'cash', kind: 'work', qty: workCashLine?.qty || 0, icon: workIcon })}
-        </div>
-      </div>
-
-      <div class="section stack section-tight">
-        <h2>Groen verdeling</h2>
-        <div class="allocation-grid">
-          ${renderAllocationColumn({ bucket: 'invoice', kind: 'green', qty: greenInvoiceLine?.qty || 0, icon: greenIcon })}
-          ${renderAllocationColumn({ bucket: 'cash', kind: 'green', qty: greenCashLine?.qty || 0, icon: greenIcon })}
+        <div class="allocation-matrix">
+          <div class="allocation-col-head" aria-hidden="true"></div>
+          <div class="allocation-col-head">Factuur</div>
+          <div class="allocation-col-head">Cash</div>
+          ${renderAllocationMatrixRow({
+            kind: 'work',
+            icon: workIcon,
+            invoiceQty: workInvoiceLine?.qty || 0,
+            cashQty: workCashLine?.qty || 0
+          })}
+          ${renderAllocationMatrixRow({
+            kind: 'green',
+            icon: greenIcon,
+            invoiceQty: greenInvoiceLine?.qty || 0,
+            cashQty: greenCashLine?.qty || 0
+          })}
         </div>
       </div>
 
