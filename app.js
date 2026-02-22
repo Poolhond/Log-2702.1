@@ -1878,7 +1878,8 @@ function renderTopbar(){
       const visual = getSettlementVisualState(settlement);
       topbar.classList.add(visual.navClass);
       $("#topbarTitle").textContent = cname(settlement.customerId);
-      subtitleEl.textContent = formatDatePretty(settlement.date);
+      const displayDate = latestLinkedLogDate(settlement) || settlement.date;
+      subtitleEl.textContent = formatDatePretty(displayDate);
       subtitleEl.classList.remove("hidden");
       linkedCustomerId = settlement.customerId || "";
     } else {
@@ -3734,8 +3735,11 @@ function renderSettlementLogOverviewSheet(settlementId){
 }
 
 function renderSettlementSheet(id){
-  const s = state.settlements.find(x => x.id === id);
-  if (!s){ closeSheet(); return; }
+  const s0 = state.settlements.find(x => x.id === id);
+  if (!s0){ closeSheet(); return; }
+  const s = typeof structuredClone === "function"
+    ? structuredClone(s0)
+    : JSON.parse(JSON.stringify(s0));
   if (!("invoicePaid" in s)) s.invoicePaid = false;
   if (!("cashPaid" in s)) s.cashPaid = false;
   if (!("markedCalculated" in s)) s.markedCalculated = s.status === "calculated";
