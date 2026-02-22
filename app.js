@@ -20,6 +20,16 @@ const esc = (s) => String(s ?? "")
   .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
   .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 
+function safeGet(key){
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function safeSet(key, val){
+  try { localStorage.setItem(key, val); return true; } catch { return false; }
+}
+function safeRemove(key){
+  try { localStorage.removeItem(key); return true; } catch { return false; }
+}
+
 function fmtMoney(n){
   const v = Number(n||0);
   return "€" + v.toFixed(2).replace(".", ",");
@@ -342,17 +352,113 @@ function ensureCoreProducts(st){
   }
 }
 
+function serializeStateForStorage(sourceState, options = {}){
+  const st = sourceState || defaultState();
+  const lite = options.lite === true;
+  return {
+    schemaVersion: Number(st.schemaVersion) || 1,
+    settings: {
+      hourlyRate: Number(st.settings?.hourlyRate ?? 38) || 38,
+      vatRate: Number(st.settings?.vatRate ?? 0.21) || 0.21,
+      theme: normalizeTheme(st.settings?.theme)
+    },
+    customers: (st.customers || []).map(c => ({
+      id: c.id,
+      nickname: c.nickname || "",
+      name: c.name || "",
+      address: c.address || "",
+      createdAt: c.createdAt || now(),
+      demo: Boolean(c.demo)
+    })),
+    products: (st.products || []).map(p => ({
+      id: p.id,
+      name: p.name || "",
+      unit: p.unit || "",
+      unitPrice: Number(p.unitPrice || 0),
+      vatRate: Number(p.vatRate ?? 0),
+      defaultBucket: p.defaultBucket === "cash" ? "cash" : "invoice",
+      demo: Boolean(p.demo)
+    })),
+    logs: (st.logs || []).map(l => ({
+      id: l.id,
+      customerId: l.customerId || null,
+      date: l.date || todayISO(),
+      createdAt: l.createdAt || now(),
+      closedAt: l.closedAt || null,
+      note: l.note || "",
+      segments: (l.segments || []).map(seg => ({
+        id: seg.id,
+        type: seg.type || "work",
+        start: seg.start ?? null,
+        end: seg.end ?? null
+      })),
+      items: (l.items || []).map(item => ({
+        id: item.id,
+        productId: item.productId || null,
+        qty: Number(item.qty || 0),
+        unitPrice: Number(item.unitPrice || 0),
+        note: item.note || ""
+      })),
+      demo: Boolean(l.demo)
+    })),
+    settlements: (st.settlements || []).map(s => ({
+      id: s.id,
+      customerId: s.customerId || null,
+      createdAt: s.createdAt || now(),
+      date: s.date || null,
+      dateOverrideISO: s.dateOverrideISO || null,
+      logIds: Array.isArray(s.logIds) ? [...s.logIds] : [],
+      status: s.status || "draft",
+      markedCalculated: Boolean(s.markedCalculated),
+      isCalculated: Boolean(s.isCalculated),
+      calculatedAt: s.calculatedAt || null,
+      invoicePaid: Boolean(s.invoicePaid),
+      cashPaid: Boolean(s.cashPaid),
+      invoiceNumber: s.invoiceNumber || "",
+      invoiceLocked: Boolean(s.invoiceLocked),
+      cashAllocation: {
+        work: Number(s.cashAllocation?.work || 0),
+        green: Number(s.cashAllocation?.green || 0),
+        products: { ...(s.cashAllocation?.products || {}) }
+      },
+      demo: Boolean(s.demo)
+    })),
+    activeLogId: st.activeLogId || null,
+    ui: lite
+      ? { demoDefaultLoaded: Boolean(st.ui?.demoDefaultLoaded), storageError: Boolean(st.ui?.storageError), storageCorrupt: Boolean(st.ui?.storageCorrupt) }
+      : {
+          demoDefaultLoaded: Boolean(st.ui?.demoDefaultLoaded),
+          storageError: Boolean(st.ui?.storageError),
+          storageCorrupt: Boolean(st.ui?.storageCorrupt),
+          backupFeedback: st.ui?.backupFeedback || null
+        },
+    logbook: {
+      statusFilter: st.logbook?.statusFilter || "open",
+      showFilters: Boolean(st.logbook?.showFilters),
+      customerId: st.logbook?.customerId || "all",
+      period: st.logbook?.period || "all",
+      groupBy: st.logbook?.groupBy || "date",
+      sortDir: st.logbook?.sortDir || "desc"
+    }
+  };
+}
+
+function renameCorruptStorage(raw){
+  if (!raw) return;
+  const corruptKey = `${STORAGE_KEY}_corrupt_${Date.now()}`;
+  if (safeSet(corruptKey, raw)) safeRemove(STORAGE_KEY);
+}
+
 function loadState(){
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = safeGet(STORAGE_KEY);
   if (!raw){
-    const st = defaultState();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
-    return st;
+    return defaultState();
   }
   const parsed = safeParseState(raw);
   if (!parsed.ok){
     const st = defaultState();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+    st.ui.storageCorrupt = true;
+    renameCorruptStorage(raw);
     return st;
   }
   const st = validateAndRepairState(migrateState(parsed.value));
@@ -408,13 +514,36 @@ function loadState(){
   }
 
   ensureUIPreferences(st);
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+  if (!st.ui || typeof st.ui !== "object") st.ui = {};
+  if (!("storageError" in st.ui)) st.ui.storageError = false;
+  if (!("storageCorrupt" in st.ui)) st.ui.storageCorrupt = false;
 
   return st;
 }
 
-function saveState(nextState = state){ localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState)); }
+function saveState(nextState = state){
+  const snapshot = serializeStateForStorage(nextState);
+  let ok = false;
+  try {
+    const json = JSON.stringify(snapshot);
+    ok = safeSet(STORAGE_KEY, json);
+  } catch {
+    ok = false;
+  }
+
+  if (ok){
+    if (nextState?.ui) nextState.ui.storageError = false;
+    return;
+  }
+
+  if (nextState?.ui) nextState.ui.storageError = true;
+  try {
+    const liteSnapshot = serializeStateForStorage(nextState, { lite: true });
+    safeSet(STORAGE_KEY, JSON.stringify(liteSnapshot));
+  } catch {
+    // never crash on persistence failures
+  }
+}
 
 const DEMO = {
   firstNames: ["Jan", "Els", "Koen", "Sofie", "Lotte", "Tom", "An", "Pieter", "Nina", "Wim", "Bram", "Fien", "Arne", "Joke", "Raf", "Mira", "Tine", "Milan"],
@@ -2530,13 +2659,13 @@ function _attachSettingsHandlers(){
 
   $("#resetAllBtn").onclick = ()=>{
     if (!confirmAction("Reset alles? Dit wist alle lokale data.")) return;
-    localStorage.removeItem(STORAGE_KEY);
+    safeRemove(STORAGE_KEY);
     location.reload();
   };
 
   $("#backupExportBtn").onclick = ()=>{
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = safeGet(STORAGE_KEY);
       if (!raw){
         setBackupFeedback("error", "Er is geen lokale data gevonden om te exporteren.");
         return;
@@ -2603,7 +2732,7 @@ function _attachSettingsHandlers(){
         return;
       }
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload.data));
+      safeSet(STORAGE_KEY, JSON.stringify(payload.data));
       location.reload();
     } catch {
       setBackupFeedback("error", "Import mislukt: kon het backup-bestand niet verwerken.");
@@ -2637,7 +2766,7 @@ function _attachSettingsHandlers(){
       return;
     }
 
-    localStorage.removeItem(STORAGE_KEY);
+    safeRemove(STORAGE_KEY);
     location.reload();
   };
 }
