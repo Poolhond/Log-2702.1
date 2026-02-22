@@ -1551,6 +1551,18 @@ function syncSettlementFromLogs(settlement, sourceState = state){
   syncSettlementStatus(settlement);
 }
 
+function getSettlementEffectiveDateISO(settlement, sourceState = state){
+  if (!settlement) return todayISO();
+  const logs = (settlement.logIds || [])
+    .map(id => sourceState.logs.find(l => l.id === id))
+    .filter(Boolean);
+  let latest = null;
+  for (const log of logs){
+    if (log.date && (!latest || log.date > latest)) latest = log.date;
+  }
+  return latest || settlement.date || todayISO();
+}
+
 // ---------- UI state ----------
 const ui = {
   navStack: [{ view: "logs" }],
@@ -2639,7 +2651,7 @@ function renderSettlements(){
         <div class="item-main">
           <div class="item-title">${esc(cname(s.customerId))}</div>
           <div class="meta-text" style="margin-top:2px;">
-            ${esc(formatDatePretty(s.date))} · ${(s.logIds||[]).length} logs · ${formatDurationCompact(totalMinutes)}
+            ${esc(formatDatePretty(getSettlementEffectiveDateISO(s)))} · ${(s.logIds||[]).length} logs · ${formatDurationCompact(totalMinutes)}
           </div>
         </div>
         <div class="amount-prominent">${formatMoneyEUR(grand)}</div>
@@ -2970,7 +2982,7 @@ function renderCustomerSheet(id){
             return `
               <div class="item ${cls}" data-open-settlement="${s.id}">
                 <div class="item-main">
-                  <div class="item-title">${esc(formatDatePretty(s.date))}</div>
+                  <div class="item-title">${esc(formatDatePretty(getSettlementEffectiveDateISO(s)))}</div>
                   <div class="item-sub mono tabular">logs ${(s.logIds||[]).length} • totaal ${formatMoneyEUR(grand)}</div>
                 </div>
               </div>
